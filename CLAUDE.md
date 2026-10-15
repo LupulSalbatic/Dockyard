@@ -36,13 +36,19 @@ Dockyard are două moduri de închidere:
   - `FolderEditor.swift`: editorul folderului (iconiță, aplicații, poziția în Dock).
   - `AppPicker.swift`: alegerea aplicațiilor.
   - `Theme.swift`: stilul vizual (glass, butoane, fundal „aurora”).
+  - `AppLocation.swift`: la pornire verifică dacă Dockyard poate scrie lângă el (nu rulează din „App Translocation”, adică direct din Descărcări). Dacă nu, oferă mutarea în `/Applications` (sau `~/Applications`), scoate carantina de pe copie și repornește de acolo.
 - `Sources/DockyardFolder/`
   - `main.swift`: delegate-ul helper-ului (reîncărcare, meniu Dock, curățenie de urgență).
   - `FolderPanel.swift`: panoul plutitor cu aplicațiile, poziționat în funcție de marginea Dock-ului.
-- `scripts/build-app.sh`: compilează (release) și asamblează `dist/Dockyard.app`. Helper-ul ajunge în `Contents/Helpers/`. Generează iconița cu `scripts/make-icon.swift` și semnează ad-hoc. Ține cache-urile în `.build/local` și șterge urmele compilatorului din afara proiectului.
+- `scripts/build-app.sh`: compilează (release, universal arm64 + x86_64) și asamblează `dist/Dockyard.app` (cu `--zip` creează și `dist/Dockyard.zip`). Helper-ul ajunge în `Contents/Helpers/`. Generează iconița cu `scripts/make-icon.swift` și semnează ad-hoc. Ține cache-urile în `.build/local` și șterge urmele compilatorului din afara proiectului.
+
+- `.github/workflows/build.yml`: compilează pe `macos-15` la fiecare push. Pe ramura principală publică release-ul `latest` cu `Dockyard.zip` (link: `releases/latest/download/Dockyard.zip`).
+
+## Distribuire
+Utilizatorul descarcă `Dockyard.zip` din Releases, trage aplicația în Aplicații și o pornește. Aplicația e semnată doar ad-hoc (fără Developer ID / notarizare), așa că la prima pornire trebuie „Deschide oricum” din Setări sistem. Binarul helper din bundle poartă carantina descărcării: `TileFactory` o scoate de pe copia din fiecare folder, altfel Gatekeeper ar bloca folderele din Dock.
 
 ## Date
-Toate datele stau **lângă aplicație**, în `dist/Dockyard Data/`, nu în `~/Library`:
+Toate datele stau **lângă aplicație**, în `Dockyard Data/` (de ex. `/Applications/Dockyard Data/` sau `dist/Dockyard Data/` la build local), nu în `~/Library`:
 - `folders.json`: `LibraryState` (folderele, aplicațiile, iconițele, `dockIndex`, `enabled`)
 - `Icons/`: imaginile alese ca iconiță
 - `Tiles/`: mini-aplicațiile din Dock

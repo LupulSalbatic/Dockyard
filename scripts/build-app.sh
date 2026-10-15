@@ -26,14 +26,18 @@ cleanup_traces() {
 trap cleanup_traces EXIT
 SPM_FLAGS=(--cache-path "$LOCAL/spm-cache" --config-path "$LOCAL/spm-config" --security-path "$LOCAL/spm-security" --manifest-cache local)
 
-echo "▸ Compilez (release)…"
-swift build -c release "${SPM_FLAGS[@]}"
+# Binar universal (Apple Silicon + Intel), ca aplicația din zip să meargă pe orice Mac.
+ARCH_FLAGS=(--arch arm64 --arch x86_64)
+
+echo "▸ Compilez (release, universal)…"
+swift build -c release "${SPM_FLAGS[@]}" "${ARCH_FLAGS[@]}"
+BIN="$(swift build -c release "${SPM_FLAGS[@]}" "${ARCH_FLAGS[@]}" --show-bin-path)"
 
 APP=dist/Dockyard.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
-cp .build/release/Dockyard "$APP/Contents/MacOS/Dockyard"
-cp .build/release/DockyardFolder "$APP/Contents/Helpers/DockyardFolder"
+cp "$BIN/Dockyard" "$APP/Contents/MacOS/Dockyard"
+cp "$BIN/DockyardFolder" "$APP/Contents/Helpers/DockyardFolder"
 
 echo "▸ Generez iconița…"
 ICONSET="$LOCAL/AppIcon.iconset"
@@ -64,3 +68,10 @@ PLIST
 codesign --force --sign - "$APP/Contents/Helpers/DockyardFolder" >/dev/null 2>&1
 codesign --force --sign - "$APP" >/dev/null 2>&1
 echo "✓ Gata: $APP"
+
+# ./scripts/build-app.sh --zip → și dist/Dockyard.zip, gata de descărcat (folosit de GitHub Actions)
+if [[ "$1" == "--zip" ]]; then
+  rm -f dist/Dockyard.zip
+  ditto -c -k --sequesterRsrc --keepParent "$APP" dist/Dockyard.zip
+  echo "✓ Gata: dist/Dockyard.zip"
+fi
