@@ -1,0 +1,63 @@
+# Compilează Dockyard.app pe macOS și, pe ramura principală, îl publică în Releases ca Dockyard.zip.
+# Link permanent: https://github.com/<proprietar>/<repo>/releases/latest/download/Dockyard.zip
+name: Build
+
+on:
+  push:
+    paths:
+      - "Sources/**"
+      - "Package.swift"
+      - "scripts/**"
+      - ".github/workflows/build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compilează și arhivează
+        run: ./scripts/build-app.sh --zip
+
+      - name: Verifică aplicația
+        run: |
+          codesign --verify --deep --strict dist/Dockyard.app
+          lipo -info dist/Dockyard.app/Contents/MacOS/Dockyard
+          lipo -info dist/Dockyard.app/Contents/Helpers/DockyardFolder
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dockyard
+          path: dist/Dockyard.zip
+
+      - name: Publică în Releases
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'NOTES'
+          ## Instalare
+          1. Descarcă **Dockyard.zip** de mai jos și deschide-l (se dezarhivează singur în Descărcări).
+          2. Trage **Dockyard.app** în dosarul **Aplicații**.
+          3. Pornește Dockyard. Prima dată macOS spune că nu poate verifica aplicația (nu e semnată de un dezvoltator Apple):
+             apasă **Gata**, apoi **Setări sistem → Confidențialitate și securitate → Deschide oricum** și confirmă.
+             De acum încolo pornește normal, ca orice aplicație.
+
+          Alternativ, în Terminal: `xattr -dr com.apple.quarantine /Applications/Dockyard.app`
+
+          Necesită macOS 15 sau mai nou (Apple Silicon sau Intel).
+          NOTES
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest dist/Dockyard.zip \
+            --title "Dockyard" \
+            --notes-file notes.md \
+            --target "$GITHUB_SHA" \
+            --latest

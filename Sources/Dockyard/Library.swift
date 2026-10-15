@@ -31,6 +31,8 @@ final class Library {
     @ObservationIgnored private var toastTask: Task<Void, Never>?
     @ObservationIgnored private var iconCache: [String: NSImage] = [:]
     @ObservationIgnored private var started = false
+    /// false cât timp Dockyard nu rulează dintr-un loc potrivit (vezi AppLocation).
+    @ObservationIgnored private var active = false
     @ObservationIgnored private var applyPending = false
 
     init() {
@@ -47,6 +49,8 @@ final class Library {
     func start() {
         guard !started else { return }
         started = true
+        guard AppLocation.check(dataDir: dataDir) else { return }
+        active = true
         try? FileManager.default.createDirectory(at: Paths.tilesDir(dataDir), withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: Paths.iconsDir(dataDir), withIntermediateDirectories: true)
         removeOrphanTiles()
@@ -88,6 +92,7 @@ final class Library {
 
     /// Apelat la închiderea aplicației: salvează pozițiile și scoate folderele din Dock.
     func shutdown() {
+        guard active else { return }
         pollTimer?.invalidate()
         captureDockPositions()
         StateIO.save(state, dataDir)

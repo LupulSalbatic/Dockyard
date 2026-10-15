@@ -29,6 +29,8 @@ public enum TileFactory {
             try? stamp.write(to: stampURL, atomically: true, encoding: .utf8)
             changed = true
         }
+        // binarul din Dockyard.app descărcat poartă „carantina” macOS → fără ea, Gatekeeper ar bloca folderul
+        removexattr(exe.path, "com.apple.quarantine", 0)
 
         let info: [String: Any] = [
             "CFBundleIdentifier": f.bundleIdentifier,
@@ -251,7 +253,7 @@ public enum AppCatalog {
     static func isUserFacing(_ path: String) -> Bool {
         guard path.hasSuffix(".app"), FileManager.default.fileExists(atPath: path) else { return false }
         let inner = (path as NSString).deletingLastPathComponent
-        let blocked = ["/Library/", "/System/Library/", "/private/", "/.Trash/", "/Volumes/", "Dockyard Data/Tiles", "/dist/Dockyard.app",
+        let blocked = ["/Library/", "/System/Library/", "/private/", "/.Trash/", "/Volumes/", "Dockyard Data/Tiles", "/Dockyard.app",
                        "/.build/", "/DerivedData/", "/node_modules/"]
         if blocked.contains(where: { path.contains($0) }) { return false }
         if inner.contains(".app/") || inner.hasSuffix(".app") { return false }   // aplicații ascunse în alte aplicații
