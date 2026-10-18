@@ -158,5 +158,6 @@ final class FolderAppDelegate: NSObject, NSApplicationDelegate {
 let app = NSApplication.shared
 let delegate = FolderAppDelegate()
 app.delegate = delegate
-app.setActivationPolicy(.regular)
+// fără bulina de „pornită” în Dock (vezi LSUIElement în TileFactory)
+app.setActivationPolicy(.accessory)
 app.run()
