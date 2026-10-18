@@ -34,6 +34,10 @@ final class Library {
     /// false cât timp Dockyard nu rulează dintr-un loc potrivit (vezi AppLocation).
     @ObservationIgnored private var active = false
     @ObservationIgnored private var applyPending = false
+    /// O iconiță s-a schimbat: la următoarea aplicare Dock-ul trebuie repornit ca s-o recitească.
+    @ObservationIgnored private var iconsDirty = false
+    /// O aplicare în așteptare trebuie să pornească și folderele (nu se pierde dacă vine alta peste ea).
+    @ObservationIgnored private var launchPending = false
 
     init() {
         dataDir = Paths.dataDir(nextTo: Bundle.main.bundleURL)
@@ -110,13 +114,16 @@ final class Library {
         return Bundle.main.executableURL!.deletingLastPathComponent().appendingPathComponent("DockyardFolder")
     }
 
-    private func buildTile(_ f: DockFolder) {
+    @discardableResult
+    private func buildTile(_ f: DockFolder) -> Bool {
         TileFactory.build(f, dataDir: dataDir, helperBinary: helperBinary, mainApp: Bundle.main.bundleURL)
     }
 
     private func publishToDock(launch: Bool) {
         if !dryRun {
-            let restarted = DockController.apply(state.enabled ? folders : [], dataDir: dataDir)
+            let reload = iconsDirty
+            iconsDirty = false
+            let restarted = DockController.apply(state.enabled ? folders : [], dataDir: dataDir, reloadIcons: reload)
             if restarted { showToast("dock.rectangle", "Dock actualizat") }
         }
         if launch && state.enabled {
@@ -126,12 +133,15 @@ final class Library {
         refreshDockTiles()
     }
 
-    private func scheduleDockApply(launch: Bool = false) {
+    private func scheduleDockApply(launch: Bool = false, delay: Duration = .milliseconds(700)) {
         applyTask?.cancel()
         applyPending = true
+        launchPending = launchPending || launch
         applyTask = Task {
-            try? await Task.sleep(for: .milliseconds(700))
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
+            let launch = launchPending
+            launchPending = false
             publishToDock(launch: launch)
             applyPending = false
         }
@@ -262,13 +272,18 @@ final class Library {
         showToast("trash", "„\(f.name)” a fost șters")
     }
 
-    /// Schimbări de conținut sau iconiță: se aplică live, fără repornirea Dock-ului.
+    /// Schimbări de conținut sau iconiță. Panoul se actualizează live; dacă s-a schimbat iconița,
+    /// Dock-ul repornește după o scurtă pauză ca s-o recitească din bundle.
     func update(_ id: UUID, _ change: (inout DockFolder) -> Void) {
         guard let i = index(of: id) else { return }
         change(&state.folders[i])
         iconVersion += 1
         StateIO.save(state, dataDir)
-        buildTile(state.folders[i])
+        if buildTile(state.folders[i]) && state.enabled {
+            iconsDirty = true
+            // pauză mai lungă: cât timp utilizatorul încearcă iconițe, Dock-ul nu repornește
+            scheduleDockApply(delay: .milliseconds(1500))
+        }
         Signal.post(Signal.changed)
     }
 

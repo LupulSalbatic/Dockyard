@@ -32,10 +32,15 @@ public enum TileFactory {
         // binarul din Dockyard.app descărcat poartă „carantina” macOS → fără ea, Gatekeeper ar bloca folderul
         removexattr(exe.path, "com.apple.quarantine", 0)
 
+        // Dock-ul arată numele din Launch Services, nu pe cel din Info.plist: fără traducere,
+        // ar afișa numele dosarului (<uuid>.app). Numele nelocalizat trebuie să fie identic cu
+        // numele dosarului, iar cel adevărat vine din InfoPlist.strings.
         let info: [String: Any] = [
             "CFBundleIdentifier": f.bundleIdentifier,
-            "CFBundleName": f.name,
-            "CFBundleDisplayName": f.name,
+            "CFBundleName": f.shortID,
+            "CFBundleDisplayName": f.shortID,
+            "CFBundleDevelopmentRegion": "en",
+            "LSHasLocalizedDisplayName": true,
             "CFBundleExecutable": "DockyardFolder",
             "CFBundleIconFile": "AppIcon",
             "CFBundlePackageType": "APPL",
@@ -57,6 +62,16 @@ public enum TileFactory {
             changed = true
         }
 
+        let lproj = res.appendingPathComponent("en.lproj", isDirectory: true)
+        try? fm.createDirectory(at: lproj, withIntermediateDirectories: true)
+        let names = ["CFBundleName": f.name, "CFBundleDisplayName": f.name]
+        let stringsURL = lproj.appendingPathComponent("InfoPlist.strings")
+        if let data = try? PropertyListSerialization.data(fromPropertyList: names, format: .xml, options: 0),
+           (try? Data(contentsOf: stringsURL)) != data {
+            try? data.write(to: stringsURL, options: .atomic)
+            changed = true
+        }
+
         let icns = ICNSWriter.data(for: f, dataDir: dataDir)
         let icnsURL = res.appendingPathComponent("AppIcon.icns")
         if (try? Data(contentsOf: icnsURL)) != icns {
@@ -64,7 +79,12 @@ public enum TileFactory {
             changed = true
         }
 
-        if changed { sign(app) }
+        if changed {
+            sign(app)
+            // noua dată a bundle-ului invalidează iconița și numele din cache-ul sistemului
+            try? fm.setAttributes([.modificationDate: Date()], ofItemAtPath: app.path)
+            LSRegisterURL(app as CFURL, true)
+        }
         return changed
     }
 
@@ -181,11 +201,13 @@ public enum DockController {
     }
 
     /// Aplică folderele în Dock. Întoarce true dacă Dock-ul a fost repornit.
+    /// `reloadIcons`: repornește Dock-ul chiar dacă lista e aceeași, ca să recitească iconițele
+    /// (folderele rulează ca aplicații de fundal, deci Dock-ul ia iconița din bundle).
     @discardableResult
-    public static func apply(_ folders: [DockFolder], dataDir: URL) -> Bool {
+    public static func apply(_ folders: [DockFolder], dataDir: URL, reloadIcons: Bool = false) -> Bool {
         let current = persistentApps()
         let next = merged(current: current, folders: folders, dataDir: dataDir)
-        guard signature(next) != signature(current) else { return false }
+        guard signature(next) != signature(current) || (reloadIcons && !folders.isEmpty) else { return false }
         write(next)
         restartDock()
         return true
