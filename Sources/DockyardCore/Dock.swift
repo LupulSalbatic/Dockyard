@@ -44,6 +44,8 @@ public enum TileFactory {
             "LSMinimumSystemVersion": "15.0",
             "NSHighResolutionCapable": true,
             "NSPrincipalClass": "NSApplication",
+            // aplicație de fundal: Dock-ul nu mai desenează bulina de „pornită” sub folder
+            "LSUIElement": true,
             "DYFolderID": f.id.uuidString,
             "DYDataDir": dataDir.path,
             "DYMainApp": mainApp.path,
